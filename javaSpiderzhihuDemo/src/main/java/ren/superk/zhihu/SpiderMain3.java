@@ -1,8 +1,10 @@
 package ren.superk.zhihu;
 
+import com.sun.scenario.effect.impl.sw.sse.SSEBlend_SRC_OUTPeer;
 import groovy.json.JsonSlurper;
 import io.netty.util.internal.ConcurrentSet;
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -25,7 +27,7 @@ import java.net.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Scanner;
+import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -36,44 +38,28 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 
 public class SpiderMain3 {
     private final static org.apache.logging.log4j.Logger log = LogManager.getLogger(SpiderMain3.class);
-    private static ConcurrentSet<String> stringConcurrentSet = new ConcurrentSet<String>();
     static ArrayBlockingQueue<Map> queryQueue = new ArrayBlockingQueue<Map>(100, false);
-    private static Client client;
+    private static ConcurrentSet<String> stringConcurrentSet = new ConcurrentSet<String>();
+
+
     public static void main(String[] args) {
         Executor executorService = Executors.newCachedThreadPool();
         final SpiderMain3 spiderMain = new SpiderMain3();
-        spiderMain.setclient();
-        spiderMain.setAllPeople(0);
-//        spiderMain.setAllHasStorePeople();
-        for (int i = 0; i < 5; i++) {
+        Random random = new Random();
+        spiderMain.setAllPeople(random.nextInt(10000));
+
+        for (int i = 0; i < 4; i++) {
             executorService.execute(new Runnable() {
                 public void run() {
                 while (true) {
                     SpiderMain3 spiderMain = new SpiderMain3();
                     Map people =queryQueue.poll() ;
                     String url_token;
-                    if (people == null){
-                        Scanner sc = new Scanner(System.in);
-                        System.out.println("请输入url_token：");
-                        url_token = sc.nextLine();
-                        people = spiderMain.getPeople(url_token);
-                    }
                     url_token= (String) people.get("url_token") ;
-                    if(!stringConcurrentSet.contains(url_token)){
-                        stringConcurrentSet.add(url_token);
-                        List<Map> getfollowing = spiderMain.getfollowing(url_token);
-                        ArrayList<String> idsfollowing = new ArrayList<String>();
-                        for (Map map : getfollowing) {
-                            idsfollowing.add(map.get("url_token").toString());
-                        }
-                        people.put("followee",idsfollowing);
-                        ArrayList<Map> maps = new ArrayList<Map>();
-                        maps.add(people);
-                        spiderMain.savePeople(maps);
+                        List<Map> getfollowing = spiderMain.getfollower(url_token);
                         for (Map map : getfollowing) {
                             queryQueue.offer(map);
                         }
-                    }
                 }
                 }
 
@@ -125,43 +111,24 @@ public class SpiderMain3 {
     private List<Map> getfollower(String url_token) {
         return getfollowing(url_token,0,null,"followers");
     }
-
-    public void setAllHasStorePeople(){
-        //查询没有处理过的加入队列中去等待处理
-        TransportClient client = setclient();
-        SearchRequestBuilder builder = client
-                .prepareSearch("zhihu")
-                .setTypes("people")
-                .addSort("following_count", SortOrder.DESC)
-                .setQuery(QueryBuilders.boolQuery().mustNot(existsQuery("followee")))
-                .addStoredField("id").setSize(500000);
-        SearchResponse response = builder.get();
-        for (SearchHit searchHitFields : response.getHits()) {
-//            stringConcurrentSet.add(searchHitFields.getId());
-            log.info(Thread.currentThread().getName()+" : 添加已处理缓存"+searchHitFields.getId());
-        }
-    }
     public void setAllPeople(int offset) {
         //查询没有处理过的加入队列中去等待处理
-//        TransportClient client = setclient();
-        SearchRequestBuilder builder = client
+        TransportClient client = setclient();
+        SearchResponse response = client
                 .prepareSearch("zhihu")
                 .setTypes("people")
                 .setFrom(offset)
-                .setSize(300000);
-//                .addSort("following_count", SortOrder.DESC)
-//                .setQuery(QueryBuilders.boolQuery().mustNot(existsQuery("followee")));
-        builder.addStoredField("id");
-        SearchResponse response = builder.get();
+                .setSize(99)
+                .addSort("following_count", SortOrder.DESC)
+                .setQuery(QueryBuilders.boolQuery()
+                        .mustNot(existsQuery("followee")))
+                .get();
         for (SearchHit searchHitFields : response.getHits().getHits()) {
-            stringConcurrentSet.add(searchHitFields.getId());
-//            queryQueue.offer(searchHitFields.getSource());
-            log.info(Thread.currentThread().getName()+": 添加处理队列"+searchHitFields.getId());
+            queryQueue.offer(searchHitFields.getSource());
+            System.out.println(Thread.currentThread().getName()+": 添加处理队列"+searchHitFields.getId());
         }
-        if(response.getHits().getHits().length == 300000){
-            setAllPeople(offset + 300000);
-        }
-//        client.close();
+        client.close();
+
     }
 
     public Map getPeopleFromes(String url_token) {
@@ -171,33 +138,24 @@ public class SpiderMain3 {
         client.close();
         return source;
     }
-    public boolean checkHasStore(String url_token){
-        Map map = getPeopleFromes(url_token);
-        return map == null || map.get("followee") == null || ((List)map.get("followee")).size() != (Integer) map.get("following_count");
-    }
     public  TransportClient setclient() {
         Settings settings = Settings.builder()
                 .put("cluster.name", "elasticsearch")
                 .build();
         TransportClient client = new PreBuiltTransportClient(settings)
                 .addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress("192.168.56.101", 9300)));
-        this.client = client;
         return client;
     }
 
     public void savePeople(List<Map> getfollowing) {
-//        TransportClient client = setclient();
+        TransportClient client = setclient();
         try {
+            int insert = 0;
+            int update = 0;
             BulkRequestBuilder bulkRequest = client.prepareBulk();
             for (Map people : getfollowing) {
                 try {
                     String url_token = people.get("url_token").toString();
-//                    if (stringConcurrentSet.contains(url_token)) {
-//                        continue;
-//                    } else {
-//                        stringConcurrentSet.add(url_token);
-//                    }
-                    stringConcurrentSet.add(url_token);
                     IndexRequest indexRequest = new IndexRequest("zhihu", "people", url_token)
                             .source(jsonBuilder()
                                     .map(people));
@@ -213,17 +171,13 @@ public class SpiderMain3 {
 
             if (bulkRequest.numberOfActions() > 0) {
                 BulkResponse bulkItemResponses = bulkRequest.get();
-                int insert = 0;
-                for (BulkItemResponse response : bulkItemResponses.getItems()) {
-                    insert = response.getOpType().equals("INSERT") ? insert++ : insert;
-                }
-                log.info(Thread.currentThread().getName() + ":共有数据"+bulkItemResponses.getItems().length+" 条,数据插入 "  + insert + ",数据更新 " + (bulkItemResponses.getItems().length - insert));
+                System.out.println(Thread.currentThread().getName() + ":共有数据"+bulkItemResponses.getItems().length+" 条,数据插入 "  + insert + ",数据更新 " + (update));
             }
 
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-//            client.close();
+            client.close();
         }
     }
 
@@ -234,7 +188,7 @@ public class SpiderMain3 {
         }
         //id索引
         try {
-            log.info(Thread.currentThread().getName()+user_token+" : 开始查询"+offset);
+            System.out.println(Thread.currentThread().getName()+user_token+" : 开始查询"+offset);
             URL url = new URL("https://www.zhihu.com/api/v4/members/" + user_token + "/"+followers+"?offset=" + offset + "&limit=20&include=locations,employments,gender,educations,business,voteup_count,thanked_Count,follower_count,following_count,cover_url,following_topic_count,following_question_count,following_favlists_count,following_columns_count,avatar_hue,answer_count,articles_count,pins_count,question_count,columns_count,commercial_question_count,favorite_count,favorited_count,logs_count,marked_answers_count,marked_answers_text,message_thread_token,account_status,is_active,is_bind_phone,is_force_renamed,is_bind_sina,is_privacy_protected,sina_weibo_url,sina_weibo_name,show_sina_weibo,is_blocking,is_blocked,is_following,is_followed,mutual_followees_count,vote_to_count,vote_from_count,thank_to_count,thank_from_count,thanked_count,description,hosted_live_count,participated_live_count,allow_message,industry_category,org_name,org_homepage,badge[?(type=best_answerer)].topics");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
