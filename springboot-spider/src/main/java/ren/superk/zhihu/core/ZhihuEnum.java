@@ -18,8 +18,10 @@ public enum  ZhihuEnum {
     ANSWERS_MARKED("他被知乎收录的回答","answers-marked"),
     LIVES("lives","lives"),
             ;
+    //查询路径
     private String value;
     private String name;
+    //查询用参数
     private String include;
     private Boolean sortFlag;
 
