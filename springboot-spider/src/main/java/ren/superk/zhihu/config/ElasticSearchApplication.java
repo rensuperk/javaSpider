@@ -1,11 +1,7 @@
-package ren.superk.config;
+package ren.superk.zhihu.config;
 
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.ComponentScan;
-
-import java.util.concurrent.atomic.AtomicBoolean;
 
 
 @SpringBootApplication(scanBasePackages = "ren.superk")

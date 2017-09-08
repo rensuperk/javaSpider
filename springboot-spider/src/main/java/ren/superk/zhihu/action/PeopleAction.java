@@ -1,4 +1,4 @@
-package ren.superk.action;
+package ren.superk.zhihu.action;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.transport.TransportClient;
@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import ren.superk.core.ZhihuEnum;
+import ren.superk.zhihu.core.ZhihuEnum;
 import ren.superk.zhihu.model.People;
 import ren.superk.zhihu.service.PeopleUrlService;
 

@@ -1,4 +1,4 @@
-package ren.superk.core;
+package ren.superk.zhihu.core;
 
 public enum SortEnum {
     CREATED("created"),
