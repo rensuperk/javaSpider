@@ -1,6 +1,6 @@
 package ren.superk.zhihu.service;
 
-import ren.superk.core.ZhihuEnum;
+import ren.superk.zhihu.core.ZhihuEnum;
 import ren.superk.zhihu.model.People;
 
 import java.util.List;

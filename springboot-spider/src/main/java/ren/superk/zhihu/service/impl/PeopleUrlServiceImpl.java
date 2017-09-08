@@ -9,7 +9,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import ren.superk.core.ZhihuEnum;
+import ren.superk.zhihu.core.ZhihuEnum;
 import ren.superk.zhihu.model.People;
 import ren.superk.zhihu.model.ZhihuPager;
 import ren.superk.zhihu.service.PeopleUrlService;
