@@ -39,9 +39,9 @@ public class SpiderMain4 {
         //将所有的已经查询的relation存入set中
         spiderMain.setRelations(0);
         //查询存入队列中
-        spiderMain.setAllPeople(random.nextInt(10000));
+        spiderMain.setAllPeople(random.nextInt(100000));
 
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 3; i++) {
             executorService.execute(new Runnable() {
                 public void run() {
                 while (true) {
@@ -55,7 +55,7 @@ public class SpiderMain4 {
                     }
                     List<Map> getfollowing = spiderMain.getfollowing(url_token);
                     List<Map> getfollower =  new ArrayList<Map>();
-//                    getfollower = spiderMain.getfollower(url_token);
+                    getfollower = spiderMain.getfollower(url_token);
                     if(getfollowing.isEmpty() && getfollower.isEmpty()){
                         continue;
                     }
@@ -266,9 +266,9 @@ public class SpiderMain4 {
 
 
     public List<Map> getfollowing(String user_token, Integer offset, List<Map> following, String followers) {
-        if (following == null) {
+//        if (following == null) {
             following = new ArrayList<Map>();
-        }
+//        }
         //id索引
         try {
 //            System.out.println(Thread.currentThread().getName()+user_token+" : 开始查询"+offset);
