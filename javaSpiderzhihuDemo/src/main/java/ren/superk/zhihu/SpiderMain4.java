@@ -41,7 +41,7 @@ public class SpiderMain4 {
         //查询存入队列中
         spiderMain.setAllPeople(random.nextInt(100000));
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 2;i++) {
             executorService.execute(new Runnable() {
                 public void run() {
                 while (true) {
