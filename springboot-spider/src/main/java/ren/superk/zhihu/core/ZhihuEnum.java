@@ -36,20 +36,20 @@ public enum  ZhihuEnum {
         return null;
     }
 
-    ZhihuEnum(String value, String name, String include, Boolean sortFlag) {
+    ZhihuEnum(String name, String value, String include, Boolean sortFlag) {
         this.value = value;
         this.name = name;
         this.include = include;
         this.sortFlag = sortFlag;
     }
 
-    ZhihuEnum(String value, String name, Boolean sortFlag) {
+    ZhihuEnum(String name, String value, Boolean sortFlag) {
         this.value = value;
         this.name = name;
         this.sortFlag = sortFlag;
     }
 
-    ZhihuEnum(String value, String name, String include) {
+    ZhihuEnum(String name, String value, String include) {
         this.value = value;
         this.name = name;
         this.include = include;
