@@ -1,9 +1,8 @@
 package ren.superk.zhihu.repository;
 
 
-import org.springframework.stereotype.Repository;
+import org.springframework.data.elasticsearch.repository.ElasticsearchRepository;
+import ren.superk.zhihu.model.People;
 
-@Repository
-public interface PeopleRepository {
-    void upsert();
+public interface PeopleRepository extends ElasticsearchRepository<People,String> {
 }

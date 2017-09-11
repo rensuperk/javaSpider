@@ -1,9 +1,13 @@
 package ren.superk.zhihu.model;
 
 
+import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+
 import java.util.ArrayList;
 import java.util.List;
-
+@Document(indexName = "zhihu", type = "people")
 public class People {
     private List<Education> educations = new ArrayList<Education>();
     private List<Topic> locations = new ArrayList<Topic>();
@@ -39,9 +43,10 @@ public class People {
 
     private String user_type;
     private String marked_answers_text;
-    private String id;
+//    private String id;
     private String headline;
     private String cover_url;
+    @Id
     private String url_token;
     private String avatar_hue;
     private String description;
@@ -307,13 +312,13 @@ public class People {
         this.marked_answers_text = marked_answers_text;
     }
 
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
+//    public String getId() {
+//        return id;
+//    }
+//
+//    public void setId(String id) {
+//        this.id = id;
+//    }
 
     public String getHeadline() {
         return headline;
