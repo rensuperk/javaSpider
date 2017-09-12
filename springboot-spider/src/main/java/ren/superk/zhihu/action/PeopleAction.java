@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ren.superk.zhihu.core.ZhihuEnum;
 import ren.superk.zhihu.model.People;
+import ren.superk.zhihu.model.ZhihuPager;
 import ren.superk.zhihu.repository.PeopleRepository;
 import ren.superk.zhihu.service.PeopleUrlService;
 
@@ -34,12 +35,12 @@ public class PeopleAction {
         return peopleUrlService.getPeople(id);
     }
     @RequestMapping("/url/people/{id}/{type}")
-    public List<Map> getollowees(@PathVariable String id
+    public List<People> getollowees(@PathVariable String id
             , @RequestParam(required = false) Integer offset
             , @RequestParam(required = false) Integer limit
             , @PathVariable String type){
 
-        return peopleUrlService.findList(id,offset,limit, ZhihuEnum.byVal(type),Map.class);
+        return peopleUrlService.findList(id,offset,limit, ZhihuEnum.byVal(type),ZhihuPager.class).getData();
     }
 
 

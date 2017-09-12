@@ -11,10 +11,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import ren.superk.zhihu.core.ZhihuEnum;
 import ren.superk.zhihu.model.People;
-import ren.superk.zhihu.model.ZhihuPager;
 import ren.superk.zhihu.service.PeopleUrlService;
-
-import java.util.List;
 
 @Service
 public class PeopleUrlServiceImpl implements PeopleUrlService{
@@ -24,7 +21,7 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
 
 
     @Override
-    public  <T> List<T>  findList(String url_token, Integer from, Integer limit, ZhihuEnum followees, Class<T> t){
+    public  <T> T findList(String url_token, Integer from, Integer limit, ZhihuEnum followees, Class<T> t){
         String url = "https://www.zhihu.com/api/v4/members/"+url_token+"/"+followees.getValue() ;
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
                 .queryParam("offset",from)
@@ -35,9 +32,8 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
         MultiValueMap<String, String> headers = new LinkedMultiValueMap<String, String>();
         headers.add("authorization", "oauth c3cef7c66a1843f8b3a9e6a1e3160e20");
         HttpEntity requestEntity = new HttpEntity(headers);
-        ResponseEntity<ZhihuPager> response = restTemplate.exchange(builder.build().encode().toUri(),HttpMethod.GET, requestEntity, ZhihuPager.class);
-        ZhihuPager<T> body = response.getBody();
-        return body.getData();
+        ResponseEntity<T> response = restTemplate.exchange(builder.build().encode().toUri(),HttpMethod.GET, requestEntity,t);
+        return response.getBody();
     }
 
     @Override

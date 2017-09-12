@@ -4,18 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class ZhihuPager<T> {
-    List<T> data = new ArrayList<T>();
+public class ZhihuPeoplePager {
+    List<People> data = new ArrayList<People>();
     Map pagging;
 
-    public<T> ZhihuPager() {
-    }
-
-    public List<T> getData() {
+    public List<People> getData() {
         return data;
     }
 
-    public void setData(List<T> data) {
+    public void setData(List<People> data) {
         this.data = data;
     }
 
