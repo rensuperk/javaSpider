@@ -1,7 +1,10 @@
 package ren.superk.zhihu.model;
 
+import org.springframework.data.elasticsearch.annotations.Document;
+
 import java.util.List;
 
+@Document(indexName = "answer", type = "v1")
 public class Answer {
     private Boolean admin_closed_comment;
     private Boolean is_collapsed;

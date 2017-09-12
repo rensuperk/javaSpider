@@ -1,5 +1,8 @@
 package ren.superk.zhihu.model;
 
+import org.springframework.data.elasticsearch.annotations.Document;
+
+@Document(indexName = "question", type = "v1")
 public class Question {
     private Long created;
     private Long id;

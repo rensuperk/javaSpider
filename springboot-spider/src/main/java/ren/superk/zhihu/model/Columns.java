@@ -1,5 +1,8 @@
 package ren.superk.zhihu.model;
 
+import org.springframework.data.elasticsearch.annotations.Document;
+
+@Document(indexName = "columns", type = "v1")
 public class Columns {
     private  Integer articles_count;
     private  Integer followers;

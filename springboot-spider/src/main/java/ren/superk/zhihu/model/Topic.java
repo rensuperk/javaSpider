@@ -1,5 +1,8 @@
 package ren.superk.zhihu.model;
 
+import org.springframework.data.elasticsearch.annotations.Document;
+
+@Document(indexName = "topic", type = "v1")
 public class Topic {
 
     private String avatar_url;

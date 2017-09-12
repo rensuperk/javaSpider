@@ -1,8 +1,10 @@
 package ren.superk.zhihu.model;
 
+import org.springframework.data.elasticsearch.annotations.Document;
+
 import java.util.List;
 import java.util.Map;
-
+@Document(indexName = "article", type = "v1")
 public class Article {
     private Boolean admin_closed_comment;
     private People author;

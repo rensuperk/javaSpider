@@ -1,5 +1,8 @@
 package ren.superk.zhihu.model;
 
+import org.springframework.data.elasticsearch.annotations.Document;
+
+@Document(indexName = "fav", type = "v1")
 public class Fav {
     private Long id;
     private Long updated_time;
