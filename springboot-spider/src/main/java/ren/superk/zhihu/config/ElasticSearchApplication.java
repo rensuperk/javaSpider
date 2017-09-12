@@ -20,6 +20,6 @@ public class ElasticSearchApplication implements CommandLineRunner {
     private PeopleService peopleService;
     @Override
     public void run(String... strings) throws Exception {
-        peopleService.initDataByThreadCount(3);
+        peopleService.initDataByThreadCount(1);
     }
 }

@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import ren.superk.zhihu.core.ZhihuEnum;
 import ren.superk.zhihu.model.People;
 import ren.superk.zhihu.model.Relation;
-import ren.superk.zhihu.model.ZhihuPager;
 import ren.superk.zhihu.model.ZhihuPeoplePager;
 import ren.superk.zhihu.repository.PeopleRepository;
 import ren.superk.zhihu.repository.RelationRepository;
@@ -31,7 +30,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.logging.Logger;
 
 @Service
 public class PeopleServiceImpl implements PeopleService {
