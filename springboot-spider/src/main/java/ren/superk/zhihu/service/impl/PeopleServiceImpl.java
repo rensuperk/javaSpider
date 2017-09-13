@@ -5,6 +5,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -16,16 +19,13 @@ import org.springframework.stereotype.Service;
 import ren.superk.zhihu.core.ZhihuEnum;
 import ren.superk.zhihu.model.People;
 import ren.superk.zhihu.model.Relation;
-import ren.superk.zhihu.model.ZhihuPeoplePager;
+import ren.superk.zhihu.model.ZhihuPager;
 import ren.superk.zhihu.repository.PeopleRepository;
 import ren.superk.zhihu.repository.RelationRepository;
 import ren.superk.zhihu.service.PeopleService;
 import ren.superk.zhihu.service.PeopleUrlService;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -33,6 +33,8 @@ import java.util.concurrent.Executors;
 
 @Service
 public class PeopleServiceImpl implements PeopleService {
+    static Logger logger = LoggerFactory.getLogger(PeopleServiceImpl.class);
+
     public static ConcurrentHashMap<String,Relation> relationMap = new ConcurrentHashMap<>();
     static ArrayBlockingQueue<People> queryQueue = new ArrayBlockingQueue<People>(10, false);
     @Autowired
@@ -46,44 +48,56 @@ public class PeopleServiceImpl implements PeopleService {
     private PeopleUrlService peopleUrlService;
 
     @Override
-    public<T> void builkupsert(List<T> list) {
+    public void builkupsert(List<Map> list, ZhihuEnum type) {
+
         ArrayList<UpdateQuery> queries = new ArrayList<>();
-        for (T people : list) {
-            ObjectMapper objectMapper = new ObjectMapper();
+
+        for (Map people : list) {
             try {
-                String value = objectMapper.writeValueAsString(people);
-                String index = null;
-                String type = null;
-                String id = null;
-                if (people instanceof People){
-                    index = "zhihu";
-                    type ="people";
-                    id =  ((People)people).getUrl_token();
-                }else if(people instanceof Relation){
-                    index = "relation";
-                    type ="relation";
-                    id = ((Relation)people).getUrl_token();
-                }else {
-                    throw new RuntimeException();
-                }
                  queries.add(new UpdateQueryBuilder()
-                         .withId(id)
-                         .withType(type)
-                         .withIndexName(index)
-                         .withClass(People.class).withDoUpsert(true)
+                         .withId(people.get(type.getPk()).toString())
+                         .withType(type.getType())
+                         .withIndexName(type.getIndex())
+                         .withClass(Map.class).withDoUpsert(true)
                          .withIndexRequest(new IndexRequest()
-                                            .source(value, XContentType.JSON)
-                                            .index(index)
-                                            .type(type)
-                                            .id(id))
+                                            .source(people)
+                                            .index(type.getIndex())
+                                            .type(type.getType())
+                                            .id(people.get(type.getPk()).toString()))
                          .build()
                  );
-            }catch (JsonProcessingException e) {
+                 logger.info("更新数据index = " +type.getIndex() + " type = " + type.getType() + " id = " + people.get(type.getPk()).toString());
+            }catch (RuntimeException e){
                 e.printStackTrace();
+                logger.error(e.getLocalizedMessage());
             }
         }
-        if (!queries.isEmpty())
+        if (! queries.isEmpty())
         elasticsearchTemplate.bulkUpdate(queries);
+
+    }
+    public void builkupsertRelation(Relation relation) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        try {
+            String value = objectMapper.writeValueAsString(relation);
+            ArrayList<UpdateQuery> queries = new ArrayList<>();
+            UpdateQuery build = new UpdateQueryBuilder()
+                    .withId(relation.getUrl_token())
+                    .withType("relation")
+                    .withIndexName("relation")
+                    .withClass(Map.class).withDoUpsert(true)
+                    .withIndexRequest(new IndexRequest()
+                            .source(value, XContentType.JSON)
+                            .index("relation")
+                            .type("relation")
+                            .id(relation.getUrl_token()))
+                    .build();
+            logger.info("更新数据index = relation, type = relation, id = " + relation.getUrl_token() + " ,  name = " + relation.getName() + " , count = " + relation.getFrom());
+            elasticsearchTemplate.update(build);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+
 
     }
 
@@ -93,6 +107,7 @@ public class PeopleServiceImpl implements PeopleService {
         while (iterator.hasNext()){
             Relation relation = iterator.next();
             relationMap.put(relation.getUrl_token(),relation);
+            logger.info("已经处理的数据 url_token = " + relation.getUrl_token() + " name = " + relation.getName() + " count = " + relation.getFrom());
         }
         return relationMap;
     }
@@ -101,7 +116,7 @@ public class PeopleServiceImpl implements PeopleService {
     public void initDataByThreadCount(int count) {
         ConcurrentHashMap<String, Relation> relations = getAllRelations();
         Random random = new Random();
-        setQueryQueue(random.nextInt(10));
+        setQueryQueue(1);
         ExecutorService pool = Executors.newFixedThreadPool(count);
         for (int i = 0; i < count; i++) {
             pool.execute(new Runnable() {
@@ -109,11 +124,32 @@ public class PeopleServiceImpl implements PeopleService {
                 public void run() {
                     while (true){
                         People poll = queryQueue.poll();
-                        if(!checkSaveCompleted(poll,ZhihuEnum.FOLLOWEES)){
-                            queryUrlAndSave(0,poll.getUrl_token(),ZhihuEnum.FOLLOWEES,null);
-                        }
-                        if(!checkSaveCompleted(poll,ZhihuEnum.FOLLOWERS)){
-                            queryUrlAndSave(0,poll.getUrl_token(),ZhihuEnum.FOLLOWERS,null);
+                        int checkSaveCompleted = checkSaveCompleted(poll);
+                        if(checkSaveCompleted != 1){
+                            if(checkSaveCompleted == 0){
+                                String type = null;
+                                int from  = 0;
+                                Relation relation = relationMap.get(poll.getUrl_token());
+                                type = relation.getName();
+                                from =relation.getFrom();
+                                boolean running = false;
+                                for (ZhihuEnum zhihuEnum : ZhihuEnum.values()) {
+                                    if(zhihuEnum.getValue().equals(type)){
+                                        running = true;
+                                        queryUrlAndSave(from,poll.getUrl_token(),zhihuEnum);
+                                        continue;
+                                    }
+                                    if(running){
+                                        queryUrlAndSave(0,poll.getUrl_token(),zhihuEnum);
+                                    }
+                                }
+                            }else{
+                                for (ZhihuEnum zhihuEnum : ZhihuEnum.values()) {
+                                    queryUrlAndSave(0,poll.getUrl_token(),zhihuEnum);
+                                }
+                            }
+
+
                         }
                     }
 
@@ -122,72 +158,66 @@ public class PeopleServiceImpl implements PeopleService {
         }
     }
 
-    private void queryUrlAndSave(int from , String url_token,ZhihuEnum type,List<String> url_tokens){
-        List<People> list = new ArrayList<>();
+    private void queryUrlAndSave(int from , String url_token,ZhihuEnum type){
+        List listre = new ArrayList<>();
         try {
-             list = peopleUrlService.findList(url_token, from, 20, type, ZhihuPeoplePager.class).getData();
-
+            listre = peopleUrlService.findList(url_token, from, 20, type, ZhihuPager.class).getData();
         }catch (RuntimeException e){
             e.printStackTrace();
         }
-        builkupsert(list);
-        if(url_tokens == null){
-            url_tokens = new ArrayList<>();
+        List<Map> list = new ArrayList<>();
+        for (Object o : listre) {
+            Map map = new HashMap<>();
+            if(o instanceof List){
+                map = (HashMap<Object, Object>) ((List) o).get(0);
+            }else if (o instanceof Map){
+                map = (Map) o;
+            }
+            list.add(map);
+        }
+        builkupsert(list,type);
+
+        if(!list.isEmpty())
+        saveRelation(url_token,type,from + list.size());
+
+        if(type == ZhihuEnum.FOLLOWEES){
+            for (Map map : list) {
+                if(!relationMap.contains(map.get("url_token"))) {
+                    People people = new People();
+                    BeanUtils.copyProperties(map,people);
+                    boolean offer = queryQueue.offer(people);
+                    if(offer){
+                        logger.info(map.get("url_token")+"加入处理队列队列");
+                    }
+                }
+            }
+
         }
 
-        List<String> newqreryList = new ArrayList<>();
-        for (People people : list) {
-            url_tokens.add(people.getUrl_token());
-            newqreryList.add(people.getUrl_token());
-            if(relationMap.contains(url_token)){
-                continue;
-            }else {
-                queryQueue.offer(people);
-            }
-        }
-        saveRelation(url_token,type,newqreryList);
         if(list.size() == 20){
-            queryUrlAndSave(from + 20,url_token,type,url_tokens);
+            queryUrlAndSave(from + 20,url_token,type);
         }
 
     }
-    private void saveRelation(String url_token,ZhihuEnum type,List<String> url_tokens){
-        Relation relation = relationMap.get(url_token);
-        Integer Eecur = 0;
-        Integer Ercur = 0;
-        if(relation == null){
-            relation = new Relation();
-            relation.setUrl_token(url_token);
-        }else {
-            Eecur = relation.getEecur();
-            Ercur = relation.getErcur();
-        }
-        if(type == ZhihuEnum.FOLLOWEES){
-            relation.setEecur(Eecur + url_tokens.size());
-            relation.getFollowees().addAll(url_tokens);
-        }else if(type == ZhihuEnum.FOLLOWERS){
-            relation.setErcur(Ercur + url_tokens.size());
-            relation.getFollowers().addAll(url_tokens);
-        }
-
-        ArrayList<Relation> relations = new ArrayList<>();
-        relations.add(relation);
-        builkupsert(relations);
+    private void saveRelation(String url_token, ZhihuEnum type, int count){
+        Relation relation = new Relation();
+        relation.setUrl_token(url_token);
+        relation.setFrom(count);
+        relation.setName(type.getValue());
+        builkupsertRelation(relation);
         relationMap.put(url_token,relation);
 
     }
-    private boolean checkSaveCompleted(People people, ZhihuEnum type){
+    private int checkSaveCompleted(People people){
         Relation relation = relationMap.get(people.getUrl_token());
-        if(ZhihuEnum.FOLLOWEES == type){
             if(relation != null){
-                return relation.getFollowees().size() == people.getFollowing_count();
+                if(ZhihuEnum.FOLLOWERS.getValue().equals(relation.getName()) && people.getFollower_count().equals(relation.getFrom())){
+                        return  1;
+                }else {
+                    return 0;
+                }
             }
-        }else if(ZhihuEnum.FOLLOWERS == type){
-            if(relation != null){
-                return relation.getFollowers().size() == people.getFollowing_count();
-            }
-        }
-        return false;
+        return -1;
     }
     /**
      * 设置到处理队列
@@ -201,9 +231,7 @@ public class PeopleServiceImpl implements PeopleService {
             String url_token = next.getUrl_token();
             if(!relationMap.contains(url_token)) {
                 queryQueue.offer(next);
-                System.out.println("url_token : " + url_token + " 加入处理队列=====================");
-            }else {
-                System.out.println("url_token : " + url_token + " 已经处理过,略过=====================");
+                logger.info("url_token : " + url_token + " 加入处理队列");
             }
         }
         if(queryQueue.size() < 6){

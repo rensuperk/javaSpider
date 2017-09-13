@@ -9,27 +9,8 @@ import java.util.ArrayList;
 public class Relation {
     @Id
     private String url_token;
-    //当前处理的数量
-    private int eecur;
-    private int ercur;
-    private ArrayList<String> followees = new ArrayList<>();
-    private ArrayList<String> followers = new ArrayList<>();
-
-    public Integer getEecur() {
-        return eecur;
-    }
-
-    public void setEecur(Integer eecur) {
-        this.eecur = eecur;
-    }
-
-    public Integer getErcur() {
-        return ercur;
-    }
-
-    public void setErcur(Integer ercur) {
-        this.ercur = ercur;
-    }
+    private String name;
+    private int from;
 
     public String getUrl_token() {
         return url_token;
@@ -39,19 +20,19 @@ public class Relation {
         this.url_token = url_token;
     }
 
-    public ArrayList<String> getFollowees() {
-        return followees;
+    public String getName() {
+        return name;
     }
 
-    public void setFollowees(ArrayList<String> followees) {
-        this.followees = followees;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    public ArrayList<String> getFollowers() {
-        return followers;
+    public int getFrom() {
+        return from;
     }
 
-    public void setFollowers(ArrayList<String> followers) {
-        this.followers = followers;
+    public void setFrom(int from) {
+        this.from = from;
     }
 }
