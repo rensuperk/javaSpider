@@ -50,6 +50,11 @@ public class PeopleServiceImpl implements PeopleService {
     @Autowired
     private PeopleUrlService peopleUrlService;
 
+    /**
+     * 批量插入
+     * @param list
+     * @param type
+     */
     @Override
     public void builkupsert(List<Map> list, ZhihuEnum type) {
 
@@ -80,6 +85,11 @@ public class PeopleServiceImpl implements PeopleService {
         elasticsearchTemplate.bulkUpdate(queries);
 
     }
+
+    /**
+     * 存储爬到的当前位置
+     * @param relation
+     */
     public void builkupsertRelation(Relation relation) {
         ObjectMapper objectMapper = new ObjectMapper();
         try {
@@ -105,6 +115,10 @@ public class PeopleServiceImpl implements PeopleService {
 
     }
 
+    /**
+     * 获取所有查询的位置
+     * @return
+     */
     @Override
     public ConcurrentHashMap<String, Relation> getAllRelations() {
         Iterator<Relation> iterator = relationRepository.findAll().iterator();
@@ -116,20 +130,28 @@ public class PeopleServiceImpl implements PeopleService {
         return relationMap;
     }
 
+    /**
+     * 初始方法
+     * @param count
+     */
     @Override
     public void initDataByThreadCount(int count) {
+        //获取所有的记录
         getAllRelations();
+        //开个线程池
         ExecutorService pool = Executors.newFixedThreadPool(count);
         for (int i = 0; i < count; i++) {
             pool.execute(new Runnable() {
                 @Override
                 public void run() {
                     while (true){
+                        //阻塞队列中数量小于10的时候就继续从库里面拿用户到队列中抓取
                         if(queryQueue.size() < 10){
                             setQueryQueue(page.incrementAndGet());
                         }
                         People poll = queryQueue.poll();
                         logger.info("开始处理数据url_token = " + poll.getUrl_token() + ",队列中剩余数量 = " + queryQueue.size());
+                        //验证用户抓取到的位置1=已经抓取完了,0=开始未完成,-1=没有开始
                         int checkSaveCompleted = checkSaveCompleted(poll);
                         if(checkSaveCompleted != 1){
                             if(checkSaveCompleted == 0){
@@ -141,17 +163,20 @@ public class PeopleServiceImpl implements PeopleService {
                                 boolean running = false;
 
                                 for (ZhihuEnum zhihuEnum : ZhihuEnum.values()) {
+                                    //关注的人有时候太多了,为了先爬取别的,这个就先略过
                                     if(zhihuEnum == ZhihuEnum.FOLLOWERS){
                                         continue;
                                     }
-                                    if(zhihuEnum.getValue().equals(type)){
-                                        running = true;
-                                        queryUrlAndSave(from,poll.getUrl_token(),zhihuEnum);
-                                        continue;
-                                    }
+                                    //只爬停顿之后的数据
                                     if(running){
                                         queryUrlAndSave(0,poll.getUrl_token(),zhihuEnum);
                                     }
+                                    //从上次停顿的位置开始
+                                    if(zhihuEnum.getValue().equals(type)){
+                                        running = true;
+                                        queryUrlAndSave(from,poll.getUrl_token(),zhihuEnum);
+                                    }
+
                                 }
                             }else{
                                 for (ZhihuEnum zhihuEnum : ZhihuEnum.values()) {
@@ -171,13 +196,20 @@ public class PeopleServiceImpl implements PeopleService {
         }
     }
 
+    /**
+     * 爬取的主要逻辑
+     * @param from
+     * @param url_token
+     * @param type
+     */
     private void queryUrlAndSave(int from , String url_token,ZhihuEnum type){
         boolean isEnd = false;
         while (!isEnd){
             List<Map> listre = new ArrayList<>();
             try {
+                //url方法
                 ZhihuPager zhihuPager = peopleUrlService.findList(url_token, from, 20, type, ZhihuPager.class);
-
+                //404返回这个用户的type就停止了,知乎返回停止也一样
                 if(zhihuPager != null){
                     isEnd = (boolean) zhihuPager.getPaging().get("is_end");
                     listre = zhihuPager.getData();
@@ -189,6 +221,7 @@ public class PeopleServiceImpl implements PeopleService {
             }catch (RuntimeException e){
                 e.printStackTrace();
             }
+            //这一段是因为知乎返回的数据不规整,需要手动处理
             List<Map> list = new ArrayList<>();
             for (Map o : listre) {
                 Map map = new HashMap<>();
@@ -202,23 +235,10 @@ public class PeopleServiceImpl implements PeopleService {
                 list.add(map);
             }
             builkupsert(list,type);
-
+            //记录爬取的问题
             if(!list.isEmpty())
                 saveRelation(url_token,type,from);
-
-//            if(type == ZhihuEnum.FOLLOWEES){
-//                for (Map map : list) {
-//                    if(!relationMap.contains(map.get("url_token"))) {
-//                        People people = new People();
-//                        BeanUtils.copyProperties(map,people);
-//                        boolean offer = queryQueue.offer(people);
-//                        if(offer){
-//                            logger.info(map.get("url_token")+"加入处理队列队列");
-//                        }
-//                    }
-//                }
-//
-//            }
+            //爬取下一页
             from +=20;
         }
 
@@ -226,18 +246,27 @@ public class PeopleServiceImpl implements PeopleService {
 
 
     }
+    //存储爬取记录
     private void saveRelation(String url_token, ZhihuEnum type, int count){
         Relation relation = new Relation();
         relation.setUrl_token(url_token);
         relation.setFrom(count);
         relation.setName(type.getValue());
+
         builkupsertRelation(relation);
         relationMap.put(url_token,relation);
 
     }
+
+    /**
+     * 检查示范完成
+     * @param people
+     * @return
+     */
     private int checkSaveCompleted(People people){
         Relation relation = relationMap.get(people.getUrl_token());
             if(relation != null){
+                //当用户的被关注人爬取完成的时候我们认为爬取完成了
                 if(ZhihuEnum.FOLLOWERS.getValue().equals(relation.getName()) && people.getFollower_count().equals(relation.getFrom())){
                         return  1;
                 }else {
@@ -251,6 +280,7 @@ public class PeopleServiceImpl implements PeopleService {
      * @param page
      */
     private void setQueryQueue(int page){
+        //抓取10条记录到任务队列
         Page<People> list = peopleRepository.findAll(PageRequest.of(page, 10, Sort.by("follower_count").descending()));
         Iterator<People> peopleIterator = list.iterator();
         while (peopleIterator.hasNext()){

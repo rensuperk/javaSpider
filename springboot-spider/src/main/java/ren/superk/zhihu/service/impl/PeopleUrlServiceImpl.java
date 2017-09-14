@@ -42,10 +42,12 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
 //                .queryParam("sort_by","voteups")
                 .queryParam("include", followees.getInclude());
         MultiValueMap<String, String> headers = new LinkedMultiValueMap<String, String>();
+        //关键参数
         headers.add("authorization", "oauth c3cef7c66a1843f8b3a9e6a1e3160e20");
         HttpEntity requestEntity = new HttpEntity(headers);
         ResponseEntity<T> response =null;
         try {
+
             if (atomicBoolean.get()) {
                 SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
                 InetSocketAddress address = new InetSocketAddress("127.0.0.1", 8580);
@@ -58,6 +60,7 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
             e.printStackTrace();
             logger.error(e.getLocalizedMessage());
             if(e.getStatusCode() ==HttpStatus.FORBIDDEN){
+                //403了设置代理
                 if(!atomicBoolean.get()){
                     SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
                     InetSocketAddress address = new InetSocketAddress("127.0.0.1", 8580);
@@ -67,6 +70,7 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
                     response = restTemplate.exchange(builder.build().encode().toUri(), HttpMethod.GET, requestEntity, t);
                     atomicBoolean.set(true);
                 }else {
+                    //有代理把代理取消
                     response = restTemplate.exchange(builder.build().encode().toUri(), HttpMethod.GET, requestEntity, t);
                     atomicBoolean.set(false);
                 }
