@@ -6,7 +6,7 @@ import java.util.Map;
 
 public class ZhihuPager<T> {
     List<T> data = new ArrayList<T>();
-    Map pagging;
+    Map paging;
 
     public<T> ZhihuPager() {
     }
@@ -19,11 +19,11 @@ public class ZhihuPager<T> {
         this.data = data;
     }
 
-    public Map getPagging() {
-        return pagging;
+    public Map getPaging() {
+        return paging;
     }
 
-    public void setPagging(Map pagging) {
-        this.pagging = pagging;
+    public void setPaging(Map paging) {
+        this.paging = paging;
     }
 }

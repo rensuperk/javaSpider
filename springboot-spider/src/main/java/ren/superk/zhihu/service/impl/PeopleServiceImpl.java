@@ -159,44 +159,52 @@ public class PeopleServiceImpl implements PeopleService {
     }
 
     private void queryUrlAndSave(int from , String url_token,ZhihuEnum type){
-        List listre = new ArrayList<>();
-        try {
-            listre = peopleUrlService.findList(url_token, from, 20, type, ZhihuPager.class).getData();
-        }catch (RuntimeException e){
-            e.printStackTrace();
-        }
-        List<Map> list = new ArrayList<>();
-        for (Object o : listre) {
-            Map map = new HashMap<>();
-            if(o instanceof List){
-                map = (HashMap<Object, Object>) ((List) o).get(0);
-            }else if (o instanceof Map){
-                map = (Map) o;
+        boolean isEnd = false;
+        while (!isEnd){
+            List<Map> listre = new ArrayList<>();
+            try {
+                ZhihuPager zhihuPager = peopleUrlService.findList(url_token, from, 20, type, ZhihuPager.class);
+                listre = zhihuPager.getData();
+                isEnd = (boolean) zhihuPager.getPaging().get("is_end");
+
+            }catch (RuntimeException e){
+                e.printStackTrace();
             }
-            list.add(map);
-        }
-        builkupsert(list,type);
+            List<Map> list = new ArrayList<>();
+            for (Map o : listre) {
+                Map map = new HashMap<>();
+                if(type == ZhihuEnum.FOLLOWING_TOPIC_CONTRIBUTIONS){
+                    map = (HashMap<Object, Object>) (o.get("topic"));
+                }else if(type == ZhihuEnum.COLUMN_CONTRIBUTIONS){
+                    map = (HashMap<Object, Object>) (o.get("columns"));
+                }else {
+                    map = o;
+                }
+                list.add(map);
+            }
+            builkupsert(list,type);
 
-        if(!list.isEmpty())
-        saveRelation(url_token,type,from + list.size());
+            if(!list.isEmpty())
+                saveRelation(url_token,type,from);
 
-        if(type == ZhihuEnum.FOLLOWEES){
-            for (Map map : list) {
-                if(!relationMap.contains(map.get("url_token"))) {
-                    People people = new People();
-                    BeanUtils.copyProperties(map,people);
-                    boolean offer = queryQueue.offer(people);
-                    if(offer){
-                        logger.info(map.get("url_token")+"加入处理队列队列");
+            if(type == ZhihuEnum.FOLLOWEES){
+                for (Map map : list) {
+                    if(!relationMap.contains(map.get("url_token"))) {
+                        People people = new People();
+                        BeanUtils.copyProperties(map,people);
+                        boolean offer = queryQueue.offer(people);
+                        if(offer){
+                            logger.info(map.get("url_token")+"加入处理队列队列");
+                        }
                     }
                 }
+
             }
-
+            from +=20;
         }
 
-        if(list.size() == 20){
-            queryUrlAndSave(from + 20,url_token,type);
-        }
+
+
 
     }
     private void saveRelation(String url_token, ZhihuEnum type, int count){
