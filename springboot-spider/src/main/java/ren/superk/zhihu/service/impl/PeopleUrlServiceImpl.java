@@ -1,23 +1,32 @@
 package ren.superk.zhihu.service.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import ren.superk.zhihu.core.ZhihuEnum;
 import ren.superk.zhihu.model.People;
 import ren.superk.zhihu.service.PeopleUrlService;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 @Service
 public class PeopleUrlServiceImpl implements PeopleUrlService{
     @Autowired
     private RestTemplate restTemplate;
-
+    private AtomicBoolean atomicBoolean = new AtomicBoolean(false);
 
 
     @Override
@@ -32,7 +41,34 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
         MultiValueMap<String, String> headers = new LinkedMultiValueMap<String, String>();
         headers.add("authorization", "oauth c3cef7c66a1843f8b3a9e6a1e3160e20");
         HttpEntity requestEntity = new HttpEntity(headers);
-        ResponseEntity<T> response = restTemplate.exchange(builder.build().encode().toUri(),HttpMethod.GET, requestEntity,t);
+        ResponseEntity<T> response = null;
+        try {
+            if (atomicBoolean.get()) {
+                SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+                InetSocketAddress address = new InetSocketAddress("127.0.0.1", 8580);
+                Proxy proxy = new Proxy(Proxy.Type.HTTP, address);
+                factory.setProxy(proxy);
+                restTemplate.setRequestFactory(factory);
+            }
+            response = restTemplate.exchange(builder.build().encode().toUri(), HttpMethod.GET, requestEntity, t);
+        }catch (HttpClientErrorException e){
+            if(e.getStatusCode() ==HttpStatus.FORBIDDEN){
+                if(!atomicBoolean.get()){
+                    SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+                    InetSocketAddress address = new InetSocketAddress("127.0.0.1", 8580);
+                    Proxy proxy = new Proxy(Proxy.Type.HTTP, address);
+                    factory.setProxy(proxy);
+                    restTemplate.setRequestFactory(factory);
+                    response = restTemplate.exchange(builder.build().encode().toUri(), HttpMethod.GET, requestEntity, t);
+                    atomicBoolean.set(true);
+                }else {
+                    response = restTemplate.exchange(builder.build().encode().toUri(), HttpMethod.GET, requestEntity, t);
+                    atomicBoolean.set(false);
+                }
+            }
+
+        }
+
         return response.getBody();
     }
 
