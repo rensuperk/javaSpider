@@ -282,6 +282,9 @@ public class PeopleServiceImpl implements PeopleService {
         //抓取10条记录到任务队列
         Page<People> list = peopleRepository.findAll(PageRequest.of(page, 10, Sort.by("follower_count").descending()));
         Iterator<People> peopleIterator = list.iterator();
+        if(page ==1 && (list == null || list.getTotalElements() == 0)){
+            queryUrlAndSave(0,"goal_lawyer",ZhihuEnum.FOLLOWEES);
+        }
         while (peopleIterator.hasNext()){
             People next = peopleIterator.next();
             String url_token = next.getUrl_token();
