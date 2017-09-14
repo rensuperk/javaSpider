@@ -30,13 +30,16 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class PeopleServiceImpl implements PeopleService {
     static Logger logger = LoggerFactory.getLogger(PeopleServiceImpl.class);
 
     public static ConcurrentHashMap<String,Relation> relationMap = new ConcurrentHashMap<>();
-    static ArrayBlockingQueue<People> queryQueue = new ArrayBlockingQueue<People>(10, false);
+    static ArrayBlockingQueue<People> queryQueue = new ArrayBlockingQueue<People>(100, false);
+    static AtomicInteger page = new AtomicInteger(0);
+
     @Autowired
     private PeopleRepository peopleRepository;
     @Autowired
@@ -54,6 +57,7 @@ public class PeopleServiceImpl implements PeopleService {
 
         for (Map people : list) {
             try {
+                if(people == null) continue;
                  queries.add(new UpdateQueryBuilder()
                          .withId(people.get(type.getPk()).toString())
                          .withType(type.getType())
@@ -66,7 +70,7 @@ public class PeopleServiceImpl implements PeopleService {
                                             .id(people.get(type.getPk()).toString()))
                          .build()
                  );
-                 logger.info("更新数据index = " +type.getIndex() + " type = " + type.getType() + " id = " + people.get(type.getPk()).toString());
+                 logger.debug("更新数据index = " +type.getIndex() + " type = " + type.getType() + " id = " + people.get(type.getPk()).toString());
             }catch (RuntimeException e){
                 e.printStackTrace();
                 logger.error(e.getLocalizedMessage());
@@ -114,16 +118,18 @@ public class PeopleServiceImpl implements PeopleService {
 
     @Override
     public void initDataByThreadCount(int count) {
-        ConcurrentHashMap<String, Relation> relations = getAllRelations();
-        Random random = new Random();
-        setQueryQueue(1);
+        getAllRelations();
         ExecutorService pool = Executors.newFixedThreadPool(count);
         for (int i = 0; i < count; i++) {
             pool.execute(new Runnable() {
                 @Override
                 public void run() {
                     while (true){
+                        if(queryQueue.size() < 10){
+                            setQueryQueue(page.incrementAndGet());
+                        }
                         People poll = queryQueue.poll();
+                        logger.info("开始处理数据url_token = " + poll.getUrl_token() + ",队列中剩余数量 = " + queryQueue.size());
                         int checkSaveCompleted = checkSaveCompleted(poll);
                         if(checkSaveCompleted != 1){
                             if(checkSaveCompleted == 0){
@@ -133,7 +139,11 @@ public class PeopleServiceImpl implements PeopleService {
                                 type = relation.getName();
                                 from =relation.getFrom();
                                 boolean running = false;
+
                                 for (ZhihuEnum zhihuEnum : ZhihuEnum.values()) {
+                                    if(zhihuEnum == ZhihuEnum.FOLLOWERS){
+                                        continue;
+                                    }
                                     if(zhihuEnum.getValue().equals(type)){
                                         running = true;
                                         queryUrlAndSave(from,poll.getUrl_token(),zhihuEnum);
@@ -145,6 +155,9 @@ public class PeopleServiceImpl implements PeopleService {
                                 }
                             }else{
                                 for (ZhihuEnum zhihuEnum : ZhihuEnum.values()) {
+                                    if(zhihuEnum == ZhihuEnum.FOLLOWERS){
+                                        continue;
+                                    }
                                     queryUrlAndSave(0,poll.getUrl_token(),zhihuEnum);
                                 }
                             }
@@ -164,8 +177,14 @@ public class PeopleServiceImpl implements PeopleService {
             List<Map> listre = new ArrayList<>();
             try {
                 ZhihuPager zhihuPager = peopleUrlService.findList(url_token, from, 20, type, ZhihuPager.class);
-                listre = zhihuPager.getData();
-                isEnd = (boolean) zhihuPager.getPaging().get("is_end");
+
+                if(zhihuPager != null){
+                    isEnd = (boolean) zhihuPager.getPaging().get("is_end");
+                    listre = zhihuPager.getData();
+                }else {
+                    isEnd = true;
+                }
+
 
             }catch (RuntimeException e){
                 e.printStackTrace();
@@ -187,19 +206,19 @@ public class PeopleServiceImpl implements PeopleService {
             if(!list.isEmpty())
                 saveRelation(url_token,type,from);
 
-            if(type == ZhihuEnum.FOLLOWEES){
-                for (Map map : list) {
-                    if(!relationMap.contains(map.get("url_token"))) {
-                        People people = new People();
-                        BeanUtils.copyProperties(map,people);
-                        boolean offer = queryQueue.offer(people);
-                        if(offer){
-                            logger.info(map.get("url_token")+"加入处理队列队列");
-                        }
-                    }
-                }
-
-            }
+//            if(type == ZhihuEnum.FOLLOWEES){
+//                for (Map map : list) {
+//                    if(!relationMap.contains(map.get("url_token"))) {
+//                        People people = new People();
+//                        BeanUtils.copyProperties(map,people);
+//                        boolean offer = queryQueue.offer(people);
+//                        if(offer){
+//                            logger.info(map.get("url_token")+"加入处理队列队列");
+//                        }
+//                    }
+//                }
+//
+//            }
             from +=20;
         }
 
@@ -232,18 +251,16 @@ public class PeopleServiceImpl implements PeopleService {
      * @param page
      */
     private void setQueryQueue(int page){
-        Page<People> list = peopleRepository.findAll(PageRequest.of(page, 20, Sort.by("follower_count").descending()));
+        Page<People> list = peopleRepository.findAll(PageRequest.of(page, 10, Sort.by("follower_count").descending()));
         Iterator<People> peopleIterator = list.iterator();
         while (peopleIterator.hasNext()){
             People next = peopleIterator.next();
             String url_token = next.getUrl_token();
-            if(!relationMap.contains(url_token)) {
-                queryQueue.offer(next);
+            boolean offer = queryQueue.offer(next);
+            if(offer){
                 logger.info("url_token : " + url_token + " 加入处理队列");
             }
         }
-        if(queryQueue.size() < 6){
-            setQueryQueue(page+1);
-        }
+
     }
 }

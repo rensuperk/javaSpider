@@ -1,5 +1,7 @@
 package ren.superk.zhihu.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.http.HttpEntity;
@@ -27,10 +29,11 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
     @Autowired
     private RestTemplate restTemplate;
     private AtomicBoolean atomicBoolean = new AtomicBoolean(false);
-
+    static Logger logger = LoggerFactory.getLogger(PeopleUrlServiceImpl.class);
 
     @Override
     public  <T> T findList(String url_token, Integer from, Integer limit, ZhihuEnum followees, Class<T> t){
+
         String url = "https://www.zhihu.com/api/v4/members/"+url_token+"/"+followees.getValue() ;
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
                 .queryParam("offset",from)
@@ -41,7 +44,7 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
         MultiValueMap<String, String> headers = new LinkedMultiValueMap<String, String>();
         headers.add("authorization", "oauth c3cef7c66a1843f8b3a9e6a1e3160e20");
         HttpEntity requestEntity = new HttpEntity(headers);
-        ResponseEntity<T> response = null;
+        ResponseEntity<T> response =null;
         try {
             if (atomicBoolean.get()) {
                 SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -52,6 +55,8 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
             }
             response = restTemplate.exchange(builder.build().encode().toUri(), HttpMethod.GET, requestEntity, t);
         }catch (HttpClientErrorException e){
+            e.printStackTrace();
+            logger.error(e.getLocalizedMessage());
             if(e.getStatusCode() ==HttpStatus.FORBIDDEN){
                 if(!atomicBoolean.get()){
                     SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -69,7 +74,7 @@ public class PeopleUrlServiceImpl implements PeopleUrlService{
 
         }
 
-        return response.getBody();
+        return response != null ? response.getBody() :null;
     }
 
     @Override
